@@ -16,6 +16,11 @@ import {
 import { MonitorWidget } from './monitor-widget';
 import { SerialMonitorOutput } from './serial-monitor-send-output';
 import { MenuModelRegistry, Command, CommandRegistry } from '@theia/core';
+import { MessageService } from '@theia/core/lib/common/message-service';
+import { EnvVariablesServer } from '@theia/core/lib/common/env-variables';
+import URI from '@theia/core/lib/common/uri';
+import { FileService } from '@theia/filesystem/lib/browser/file-service';
+import dateFormat from 'dateformat';
 import {
   TabBarToolbarContribution,
   TabBarToolbarRegistry,
@@ -25,7 +30,11 @@ import { ArduinoMenus } from '../../menu/arduino-menus';
 import { nls } from '@theia/core/lib/common';
 import { Event } from '@theia/core/lib/common/event';
 import { MonitorModel } from '../../monitor-model';
-import { MonitorManagerProxyClient } from '../../../common/protocol';
+import {
+  FileSystemExt,
+  MonitorManagerProxyClient,
+} from '../../../common/protocol';
+import { DialogService } from '../../dialog-service';
 import {
   ArduinoPreferences,
   defaultMonitorWidgetDockPanel,
@@ -63,6 +72,9 @@ export namespace SerialMonitor {
     export const SELECT_ALL_OUTPUT = {
       id: 'serial-monitor-select-all-output',
     };
+    export const SAVE_OUTPUT = {
+      id: 'serial-monitor-save-output',
+    };
   }
 }
 
@@ -94,6 +106,16 @@ export class MonitorViewContribution
   private readonly monitorManagerProxy: MonitorManagerProxyClient;
   @inject(ArduinoPreferences)
   private readonly arduinoPreferences: ArduinoPreferences;
+  @inject(DialogService)
+  private readonly dialogService: DialogService;
+  @inject(FileService)
+  private readonly fileService: FileService;
+  @inject(FileSystemExt)
+  private readonly fileSystemExt: FileSystemExt;
+  @inject(EnvVariablesServer)
+  private readonly envVariablesServer: EnvVariablesServer;
+  @inject(MessageService)
+  private readonly messageService: MessageService;
 
   private _panel: ApplicationShell.Area;
 
@@ -178,6 +200,12 @@ export class MonitorViewContribution
       icon: codicon('copy'),
       tooltip: nls.localize('arduino/serial/copyOutput', 'Copy Output'),
     });
+    registry.registerItem({
+      id: SerialMonitor.Commands.SAVE_OUTPUT.id,
+      command: SerialMonitor.Commands.SAVE_OUTPUT.id,
+      icon: codicon('save-as'),
+      tooltip: nls.localize('arduino/serial/saveOutput', 'Save Output'),
+    });
   }
 
   override registerCommands(commands: CommandRegistry): void {
@@ -201,6 +229,15 @@ export class MonitorViewContribution
     });
     commands.registerCommand(SerialMonitor.Commands.SELECT_ALL_OUTPUT, {
       execute: () => this.tryGetWidget()?.selectAllOutput(),
+    });
+    commands.registerCommand(SerialMonitor.Commands.SAVE_OUTPUT, {
+      isEnabled: (widget) => widget instanceof MonitorWidget,
+      isVisible: (widget) => widget instanceof MonitorWidget,
+      execute: (widget) => {
+        if (widget instanceof MonitorWidget) {
+          return this.saveOutput(widget);
+        }
+      },
     });
     if (this.toggleCommand) {
       commands.registerCommand(this.toggleCommand, {
@@ -244,6 +281,56 @@ export class MonitorViewContribution
     if (widget) {
       widget.reset();
     }
+  }
+
+  protected async saveOutput(widget: MonitorWidget): Promise<void> {
+    // Capture the output before showing the dialog; the buffer keeps
+    // changing while the dialog is open.
+    const plainText = widget.outputText();
+    const csvText = widget.outputCsvText();
+    const homeDirUri = new URI(await this.envVariablesServer.getHomeDirUri());
+    const defaultUri = homeDirUri.resolve(
+      `serial-monitor-${dateFormat(new Date(), 'yyyymmdd-HHMMss')}.txt`
+    );
+    const defaultPath = await this.fileService.fsPath(defaultUri);
+    const { filePath, canceled } = await this.dialogService.showSaveDialog({
+      title: nls.localize(
+        'arduino/serial/saveOutputAs',
+        'Save Serial Monitor output as...'
+      ),
+      defaultPath,
+      filters: [
+        {
+          name: nls.localize('arduino/serial/textFiles', 'Text Files'),
+          extensions: ['txt', 'log'],
+        },
+        {
+          name: nls.localize('arduino/serial/csvFiles', 'CSV Files'),
+          extensions: ['csv'],
+        },
+        {
+          name: nls.localize('arduino/serial/allFiles', 'All Files'),
+          extensions: ['*'],
+        },
+      ],
+    });
+    if (canceled || !filePath) {
+      return;
+    }
+    const text = filePath.toLowerCase().endsWith('.csv') ? csvText : plainText;
+    const destinationUri = await this.fileSystemExt.getUri(filePath);
+    if (!destinationUri) {
+      return;
+    }
+    await this.fileService.write(new URI(destinationUri), text);
+    this.messageService.info(
+      nls.localize(
+        'arduino/serial/savedOutput',
+        "Saved Serial Monitor output to '{0}'.",
+        filePath
+      ),
+      { timeout: 2000 }
+    );
   }
 
   protected renderAutoScrollButton(): React.ReactNode {

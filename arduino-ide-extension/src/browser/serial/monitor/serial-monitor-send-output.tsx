@@ -7,6 +7,8 @@ import {
   messagesToLines,
   truncateLines,
   linesToPlainText,
+  linesToCsvText,
+  LINE_TIMESTAMP_FORMAT,
 } from './monitor-utils';
 import { MonitorManagerProxyClient } from '../../../common/protocol';
 import { MonitorModel } from '../../monitor-model';
@@ -39,6 +41,22 @@ export class SerialMonitorOutput extends React.Component<
       timestamp: this.props.monitorModel.timestamp,
       charCount: 0,
     };
+  }
+
+  /**
+   * The current output as plain text, in the same form as the
+   * `Copy Output` toolbar action puts it on the clipboard.
+   */
+  getPlainText(): string {
+    return linesToPlainText(this.state.lines);
+  }
+
+  /**
+   * The current output as CSV rows, one row per line, with a leading
+   * timestamp column when timestamps are enabled.
+   */
+  getCsvText(): string {
+    return linesToCsvText(this.state.lines, this.state.timestamp);
   }
 
   override render(): React.ReactNode {
@@ -178,7 +196,10 @@ const _Row = ({
 }) => {
   const timestamp =
     (data.timestamp &&
-      `${dateFormat(data.lines[index].timestamp, 'HH:MM:ss.l')} -> `) ||
+      `${dateFormat(
+        data.lines[index].timestamp,
+        LINE_TIMESTAMP_FORMAT
+      )} -> `) ||
     '';
   return (
     (data.lines[index].lineLen && (
