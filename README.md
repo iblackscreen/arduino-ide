@@ -2,6 +2,13 @@
 
 # Arduino IDE 2.x
 
+> [!IMPORTANT]
+> This is an **unofficial fork** of the [Arduino IDE](https://github.com/arduino/arduino-ide).
+> It adds three Serial Monitor improvements (select-all & copy, save output, CSV export) that have
+> been proposed upstream — see the [releases](https://github.com/iblackscreen/arduino-ide/releases)
+> for unsigned test builds (modifications documented in the commit history, July 2026).
+> This fork is not affiliated with or endorsed by Arduino. Arduino® is a trademark of Arduino S.r.l.
+
 [![Build status](https://github.com/arduino/arduino-ide/actions/workflows/build.yml/badge.svg)](https://github.com/arduino/arduino-ide/actions/workflows/build.yml)
 [![Check JavaScript status](https://github.com/arduino/arduino-ide/actions/workflows/check-javascript.yml/badge.svg)](https://github.com/arduino/arduino-ide/actions/workflows/check-javascript.yml)
 [![Test JavaScript status](https://github.com/arduino/arduino-ide/actions/workflows/test-javascript.yml/badge.svg)](https://github.com/arduino/arduino-ide/actions/workflows/test-javascript.yml)
