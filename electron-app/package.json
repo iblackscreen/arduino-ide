@@ -192,6 +192,7 @@
         }
       ]
     },
+    "afterPack": "scripts/adhocSign.js",
     "afterSign": "scripts/notarize.js",
     "publish": [
       {
